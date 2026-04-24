@@ -563,42 +563,65 @@
         });
 
         /* ============================================================
-           🎵 CONTROL DE MÚSICA
+           🎵 CONTROL DE MÚSICA — Playlist aleatoria real
         ============================================================ */
-        let audioElement = null;
         const toggleMusicBtn = document.getElementById('toggleMusicBtn');
         let musicPlaying = false;
 
-        function obtenerFuenteMusica() {
-            if (typeof LISTA_REPRODUCCION !== 'undefined' && LISTA_REPRODUCCION.length > 0) {
-                return LISTA_REPRODUCCION[Math.floor(Math.random() * LISTA_REPRODUCCION.length)];
+        // Un único elemento Audio reutilizable
+        const audio = new Audio();
+        audio.volume = 0.5;
+
+        // Cola de reproducción aleatoria (Fisher-Yates shuffle)
+        let shuffledQueue = [];
+        let queueIndex = 0;
+
+        function shuffle(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
             }
-            if (MUSIC_SOURCE && MUSIC_SOURCE.trim() !== '') return MUSIC_SOURCE;
-            return null;
+            return a;
         }
 
+        function buildQueue() {
+            shuffledQueue = shuffle(LISTA_REPRODUCCION);
+            queueIndex = 0;
+        }
+
+        function playNext() {
+            if (queueIndex >= shuffledQueue.length) {
+                buildQueue(); // Cuando se acaban, mezcla de nuevo
+            }
+            audio.src = shuffledQueue[queueIndex++];
+            audio.play().catch(() => {});
+        }
+
+        // Al terminar una canción → siguiente automáticamente
+        audio.addEventListener('ended', playNext);
+
         function toggleMusic() {
-            const fuente = obtenerFuenteMusica();
-            if (!fuente) {
-                alert('🎵 No se ha configurado ninguna canción.\n\n👉 Abre el código y busca MUSIC_SOURCE para agregar tu música.');
+            if (!LISTA_REPRODUCCION || LISTA_REPRODUCCION.length === 0) {
+                alert('🎵 No se ha configurado ninguna canción.\n\n👉 Abre el código y busca LISTA_REPRODUCCION para agregar tu música.');
                 return;
             }
-            if (!audioElement) {
-                audioElement = new Audio(fuente);
-                audioElement.loop = true;
-                audioElement.volume = 0.5;
-            }
             if (musicPlaying) {
-                audioElement.pause();
+                audio.pause();
                 toggleMusicBtn.innerHTML = '▶️ Música';
                 musicPlaying = false;
             } else {
-                audioElement.play().then(() => {
+                // Primera vez: construir la cola aleatoria
+                if (!audio.src || audio.src === window.location.href) {
+                    buildQueue();
+                    audio.src = shuffledQueue[queueIndex++];
+                }
+                audio.play().then(() => {
                     musicPlaying = true;
                     toggleMusicBtn.innerHTML = '🎵 Pausar música';
                 }).catch(err => {
                     console.warn('No se pudo reproducir la música:', err);
-                    alert('⚠️ No se pudo reproducir el audio. Verifica la ruta o el formato.');
+                    alert('⚠️ No se pudo reproducir el audio.\nVerifica que los archivos MP3 estén en la misma carpeta que el HTML.');
                 });
             }
         }
